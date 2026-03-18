@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastSeen      DateTime  @default(now())
+  status        String?   @default("Hey there! I am using ChatApp.")
+  isOnline      Boolean   @default(false)
+
+  accounts         Account[]
+  sessions         Session[]
+  sentMessages     Message[]      @relation("SentMessages")
+  conversationsAs1 Conversation[] @relation("User1Conversations")
+  conversationsAs2 Conversation[] @relation("User2Conversations")
+  reactions        MessageReaction[]
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user1Id   String
+  user2Id   String
+
+  user1    User      @relation("User1Conversations", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User      @relation("User2Conversations", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([user1Id, user2Id])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String   @db.Text
+  type           String   @default("text")
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isEdited       Boolean  @default(false)
+  isDeleted      Boolean  @default(false)
+  isRead         Boolean  @default(false)
+  senderId       String
+  conversationId String
+
+  sender       User              @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+  userId    String
+  messageId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+}

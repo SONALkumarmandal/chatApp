@@ -3,18 +3,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowLeft, Phone, Video, Info, Loader2, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Phone, Video, Info, Loader2, ChevronDown, X } from "lucide-react";
 import { UserAvatar } from "./user-avatar";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { TypingIndicator } from "./typing-indicator";
 import { useChatStore } from "@/store/chat-store";
 import { pusherClient } from "@/lib/pusher";
-import { Message } from "@/types";
+import { Conversation, Message } from "@/types";
 import { cn, formatLastSeen } from "@/lib/utils";
-import { isSameDay } from "date-fns";
-import { format } from "date-fns";
+import { isSameDay, format } from "date-fns";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -27,7 +26,7 @@ export function ChatWindow({ conversationId }: Props) {
   const userId = (session?.user as any)?.id;
 
   const {
-    conversations, messages, addMessage,
+    conversations, addConversation, messages, addMessage,
     setMessages, prependMessages, typingUsers,
     setTyping, setSidebarOpen,
   } = useChatStore();
@@ -45,10 +44,23 @@ export function ChatWindow({ conversationId }: Props) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+
+  // Fetch conversation if not in store yet
+  useEffect(() => {
+    if (!conversation && conversationId) {
+      fetch("/api/conversations")
+        .then((res) => res.json())
+        .then((data: Conversation[]) => {
+          data.forEach((c) => addConversation(c));
+        })
+        .catch(console.error);
+    }
+  }, [conversationId, conversation, addConversation]);
 
   const fetchMessages = useCallback(async (cursor?: string) => {
     try {
@@ -102,7 +114,6 @@ export function ChatWindow({ conversationId }: Props) {
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
     atBottom.current = dist < 80;
     setShowScrollBtn(dist > 200);
-
     if (el.scrollTop < 80 && nextCursor && !isLoadingMore) {
       setIsLoadingMore(true);
       const prev = el.scrollHeight;
@@ -146,7 +157,6 @@ export function ChatWindow({ conversationId }: Props) {
       const prev = msgs[i - 1];
       const showDate = !prev || !isSameDay(new Date(msg.createdAt), new Date(prev.createdAt));
       const showAvatar = !prev || prev.senderId !== msg.senderId || showDate;
-
       if (showDate) {
         items.push(
           <div key={`date-${msg.id}`} className="flex items-center gap-3 px-4 py-3">
@@ -154,8 +164,7 @@ export function ChatWindow({ conversationId }: Props) {
             <span className="text-[11px] text-neutral-500 font-medium px-2">
               {isSameDay(new Date(msg.createdAt), new Date())
                 ? "Today"
-                : format(new Date(msg.createdAt), "MMMM d, yyyy")
-              }
+                : format(new Date(msg.createdAt), "MMMM d, yyyy")}
             </span>
             <div className="flex-1 h-px bg-neutral-800" />
           </div>
@@ -169,109 +178,193 @@ export function ChatWindow({ conversationId }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-950">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 bg-neutral-900 flex-shrink-0">
-        <button
-          className="lg:hidden p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-          onClick={() => { setSidebarOpen(true); router.push("/chat"); }}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+    <div className="flex h-full bg-neutral-950 relative overflow-hidden">
+      {/* Main chat area */}
+      <div className="flex flex-col flex-1 min-w-0">
 
-        {otherUser ? (
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <UserAvatar user={otherUser} size="sm" showOnline />
-            <div className="min-w-0">
-              <p className="font-semibold text-sm text-white truncate">{otherUser.name}</p>
-              <p className="text-xs text-neutral-500">
-                {otherUser.isOnline
-                  ? <span className="text-green-500 font-medium">Online</span>
-                  : formatLastSeen(otherUser.lastSeen)
-                }
-              </p>
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 bg-neutral-900 flex-shrink-0">
+          <button
+            className="lg:hidden p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+            onClick={() => { setSidebarOpen(true); router.push("/chat"); }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          {otherUser ? (
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <UserAvatar user={otherUser} size="sm" showOnline />
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-white truncate">{otherUser.name}</p>
+                <p className="text-xs">
+                  {otherUser.isOnline
+                    ? <span className="text-green-500 font-medium">Online</span>
+                    : <span className="text-neutral-500">{formatLastSeen(otherUser.lastSeen)}</span>
+                  }
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1" />
-        )}
+          ) : (
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-8 h-8 rounded-full bg-neutral-800 animate-pulse" />
+              <div className="space-y-1.5">
+                <div className="h-3 w-28 rounded bg-neutral-800 animate-pulse" />
+                <div className="h-2.5 w-16 rounded bg-neutral-800 animate-pulse" />
+              </div>
+            </div>
+          )}
 
-        <div className="flex items-center gap-1">
-          {[Phone, Video, Info].map((Icon, i) => (
+          {/* Action buttons */}
+          <div className="flex items-center gap-1">
             <button
-              key={i}
               disabled
+              title="Voice call (coming soon)"
               className="p-2 rounded-lg text-neutral-600 cursor-not-allowed"
             >
-              <Icon className="w-4 h-4" />
+              <Phone className="w-4 h-4" />
             </button>
-          ))}
+            <button
+              disabled
+              title="Video call (coming soon)"
+              className="p-2 rounded-lg text-neutral-600 cursor-not-allowed"
+            >
+              <Video className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowInfo(!showInfo)}
+              className={cn(
+                "p-2 rounded-lg transition-colors",
+                showInfo
+                  ? "bg-violet-600/20 text-violet-400"
+                  : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+              )}
+              title="User info"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto py-2"
-      >
-        {isLoadingMore && (
-          <div className="flex justify-center py-3">
-            <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
-          </div>
-        )}
-
-        {!nextCursor && msgs.length > 0 && (
-          <p className="text-center text-xs text-neutral-600 py-4">
-            Beginning of conversation
-          </p>
-        )}
-
-        {isLoading ? (
-          <div className="space-y-4 px-4 py-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className={cn("flex gap-2", i % 2 === 0 ? "flex-row" : "flex-row-reverse")}>
-                <div className="h-8 w-8 rounded-full bg-neutral-800 animate-pulse flex-shrink-0" />
-                <div className={cn("h-10 rounded-2xl bg-neutral-800 animate-pulse", i % 2 === 0 ? "w-48" : "w-36")} />
-              </div>
-            ))}
-          </div>
-        ) : msgs.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center h-full py-16 text-center px-8"
-          >
-            <UserAvatar user={otherUser ?? {}} size="lg" />
-            <p className="font-semibold mt-4 text-lg text-white">{otherUser?.name}</p>
-            <p className="text-sm text-neutral-500 mt-1">
-              Say hello to {otherUser?.name?.split(" ")[0]}! 👋
-            </p>
-          </motion.div>
-        ) : (
-          renderMessages()
-        )}
-
-        <TypingIndicator users={typing} />
-        <div ref={bottomRef} className="h-1" />
-      </div>
-
-      {/* Scroll to bottom */}
-      {showScrollBtn && (
-        <button
-          onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
-          className="absolute bottom-24 right-6 w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-lg hover:bg-violet-500 transition-colors z-10"
+        {/* Messages */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto py-2"
         >
-          <ChevronDown className="w-4 h-4" />
-        </button>
-      )}
+          {isLoadingMore && (
+            <div className="flex justify-center py-3">
+              <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
+            </div>
+          )}
 
-      <MessageInput
-        conversationId={conversationId}
-        onSend={handleSend}
-        onTyping={handleTyping}
-        disabled={isSending}
-      />
+          {!nextCursor && msgs.length > 0 && (
+            <p className="text-center text-xs text-neutral-600 py-4">
+              Beginning of conversation
+            </p>
+          )}
+
+          {isLoading ? (
+            <div className="space-y-4 px-4 py-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className={cn("flex gap-2", i % 2 === 0 ? "flex-row" : "flex-row-reverse")}>
+                  <div className="h-8 w-8 rounded-full bg-neutral-800 animate-pulse flex-shrink-0" />
+                  <div className={cn("h-10 rounded-2xl bg-neutral-800 animate-pulse", i % 2 === 0 ? "w-48" : "w-36")} />
+                </div>
+              ))}
+            </div>
+          ) : msgs.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center h-full py-16 text-center px-8"
+            >
+              {otherUser && <UserAvatar user={otherUser} size="lg" />}
+              <p className="font-semibold mt-4 text-lg text-white">{otherUser?.name}</p>
+              <p className="text-sm text-neutral-500 mt-1">
+                Say hello to {otherUser?.name?.split(" ")[0] ?? "them"}! 👋
+              </p>
+            </motion.div>
+          ) : (
+            renderMessages()
+          )}
+
+          <TypingIndicator users={typing} />
+          <div ref={bottomRef} className="h-1" />
+        </div>
+
+        {/* Scroll to bottom */}
+        {showScrollBtn && (
+          <button
+            onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="absolute bottom-24 right-6 w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-lg hover:bg-violet-500 transition-colors z-10"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        )}
+
+        <MessageInput
+          conversationId={conversationId}
+          onSend={handleSend}
+          onTyping={handleTyping}
+          disabled={isSending}
+        />
+      </div>
+
+      {/* Info Panel */}
+      <AnimatePresence>
+        {showInfo && otherUser && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 280, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex-shrink-0 bg-neutral-900 border-l border-neutral-800 flex flex-col overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+              <h3 className="font-semibold text-white text-sm">Profile</h3>
+              <button
+                onClick={() => setShowInfo(false)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center py-8 px-4 gap-3">
+              <UserAvatar user={otherUser} size="lg" showOnline />
+              <div className="text-center">
+                <p className="font-semibold text-white">{otherUser.name}</p>
+                <p className="text-sm text-neutral-500">{otherUser.email}</p>
+              </div>
+              <div className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
+                otherUser.isOnline
+                  ? "bg-green-500/10 text-green-500"
+                  : "bg-neutral-800 text-neutral-500"
+              )}>
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  otherUser.isOnline ? "bg-green-500" : "bg-neutral-500"
+                )} />
+                {otherUser.isOnline ? "Online" : "Offline"}
+              </div>
+            </div>
+
+            <div className="px-4 space-y-2">
+              <div className="bg-neutral-800 rounded-xl p-3">
+                <p className="text-xs text-neutral-500 mb-1">Status</p>
+                <p className="text-sm text-white">
+                  {(otherUser as any).status ?? "Hey there! I am using ChitChat."}
+                </p>
+              </div>
+              <div className="bg-neutral-800 rounded-xl p-3">
+                <p className="text-xs text-neutral-500 mb-1">Email</p>
+                <p className="text-sm text-white truncate">{otherUser.email}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

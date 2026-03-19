@@ -4,12 +4,14 @@ import { Sidebar } from "@/components/chat/sidebar";
 import { ChatWindow } from "@/components/chat/chat-window";
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function ConversationPage({ params }: Props) {
   const session = await auth();
   if (!session) redirect("/auth/signin");
+
+  const { id } = await params;
 
   return (
     <div className="flex h-screen bg-neutral-950">
@@ -17,7 +19,7 @@ export default async function ConversationPage({ params }: Props) {
         <Sidebar />
       </div>
       <div className="flex-1 relative overflow-hidden">
-        <ChatWindow conversationId={params.id} />
+        <ChatWindow conversationId={id} />
       </div>
     </div>
   );

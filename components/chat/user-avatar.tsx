@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn, getInitials } from "@/lib/utils";
 
 interface UserAvatarProps {
@@ -26,14 +27,24 @@ const dotMap = {
   lg: "h-3.5 w-3.5 bottom-0.5 right-0.5",
 };
 
+const pixelMap = {
+  xs: 28,
+  sm: 32,
+  md: 40,
+  lg: 48,
+};
+
 export function UserAvatar({ user, size = "md", showOnline = false }: UserAvatarProps) {
   return (
     <div className="relative flex-shrink-0">
       {user.image ? (
-        <img
+        <Image
           src={user.image}
           alt={user.name ?? "User"}
+          width={pixelMap[size]}
+          height={pixelMap[size]}
           className={cn("rounded-full object-cover", sizeMap[size])}
+          referrerPolicy="no-referrer"
         />
       ) : (
         <div className={cn(

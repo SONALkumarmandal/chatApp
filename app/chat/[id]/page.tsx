@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatWindow } from "@/components/chat/chat-window";
+import { CallProvider } from "@/components/chat/call-provider";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -14,13 +15,15 @@ export default async function ConversationPage({ params }: Props) {
   const { id } = await params;
 
   return (
-    <div className="flex h-screen bg-neutral-950">
-      <div className="hidden lg:block w-[320px] xl:w-[360px] flex-shrink-0">
-        <Sidebar />
+    <CallProvider>
+      <div className="flex h-screen bg-neutral-950">
+        <div className="hidden lg:block w-[320px] xl:w-[360px] flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex-1 relative overflow-hidden">
+          <ChatWindow conversationId={id} />
+        </div>
       </div>
-      <div className="flex-1 relative overflow-hidden">
-        <ChatWindow conversationId={id} />
-      </div>
-    </div>
+    </CallProvider>
   );
 }

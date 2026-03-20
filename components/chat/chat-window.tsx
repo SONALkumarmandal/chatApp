@@ -4,7 +4,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Phone, Video, Info, Loader2, ChevronDown, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Phone,
+  Video,
+  Info,
+  Loader2,
+  ChevronDown,
+  X,
+} from "lucide-react";
 import { UserAvatar } from "./user-avatar";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
@@ -26,14 +34,22 @@ export function ChatWindow({ conversationId }: Props) {
   const userId = (session?.user as any)?.id;
 
   const {
-    conversations, addConversation, messages, addMessage,
-    setMessages, prependMessages, typingUsers,
-    setTyping, setSidebarOpen,
+    conversations,
+    addConversation,
+    messages,
+    addMessage,
+    setMessages,
+    prependMessages,
+    typingUsers,
+    setTyping,
+    setSidebarOpen,
   } = useChatStore();
 
   const conversation = conversations.find((c) => c.id === conversationId);
   const otherUser = conversation
-    ? conversation.user1Id === userId ? conversation.user2 : conversation.user1
+    ? conversation.user1Id === userId
+      ? conversation.user2
+      : conversation.user1
     : null;
 
   const msgs = messages[conversationId] || [];
@@ -62,18 +78,21 @@ export function ChatWindow({ conversationId }: Props) {
     }
   }, [conversationId, conversation, addConversation]);
 
-  const fetchMessages = useCallback(async (cursor?: string) => {
-    try {
-      const url = `/api/messages?conversationId=${conversationId}${cursor ? `&cursor=${cursor}` : ""}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (cursor) prependMessages(conversationId, data.messages);
-      else setMessages(conversationId, data.messages);
-      setNextCursor(data.nextCursor);
-    } catch {
-      toast.error("Failed to load messages");
-    }
-  }, [conversationId, setMessages, prependMessages]);
+  const fetchMessages = useCallback(
+    async (cursor?: string) => {
+      try {
+        const url = `/api/messages?conversationId=${conversationId}${cursor ? `&cursor=${cursor}` : ""}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (cursor) prependMessages(conversationId, data.messages);
+        else setMessages(conversationId, data.messages);
+        setNextCursor(data.nextCursor);
+      } catch {
+        toast.error("Failed to load messages");
+      }
+    },
+    [conversationId, setMessages, prependMessages],
+  );
 
   useEffect(() => {
     setIsLoading(true);
@@ -155,11 +174,15 @@ export function ChatWindow({ conversationId }: Props) {
     const items: React.ReactNode[] = [];
     msgs.forEach((msg, i) => {
       const prev = msgs[i - 1];
-      const showDate = !prev || !isSameDay(new Date(msg.createdAt), new Date(prev.createdAt));
+      const showDate =
+        !prev || !isSameDay(new Date(msg.createdAt), new Date(prev.createdAt));
       const showAvatar = !prev || prev.senderId !== msg.senderId || showDate;
       if (showDate) {
         items.push(
-          <div key={`date-${msg.id}`} className="flex items-center gap-3 px-4 py-3">
+          <div
+            key={`date-${msg.id}`}
+            className="flex items-center gap-3 px-4 py-3"
+          >
             <div className="flex-1 h-px bg-neutral-800" />
             <span className="text-[11px] text-neutral-500 font-medium px-2">
               {isSameDay(new Date(msg.createdAt), new Date())
@@ -167,11 +190,11 @@ export function ChatWindow({ conversationId }: Props) {
                 : format(new Date(msg.createdAt), "MMMM d, yyyy")}
             </span>
             <div className="flex-1 h-px bg-neutral-800" />
-          </div>
+          </div>,
         );
       }
       items.push(
-        <MessageBubble key={msg.id} message={msg} showAvatar={showAvatar} />
+        <MessageBubble key={msg.id} message={msg} showAvatar={showAvatar} />,
       );
     });
     return items;
@@ -181,12 +204,14 @@ export function ChatWindow({ conversationId }: Props) {
     <div className="flex h-full bg-neutral-950 relative overflow-hidden">
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
-
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 bg-neutral-900 flex-shrink-0">
           <button
             className="lg:hidden p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-            onClick={() => { setSidebarOpen(true); router.push("/chat"); }}
+            onClick={() => {
+              setSidebarOpen(true);
+              router.push("/chat");
+            }}
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -195,12 +220,17 @@ export function ChatWindow({ conversationId }: Props) {
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <UserAvatar user={otherUser} size="sm" showOnline />
               <div className="min-w-0">
-                <p className="font-semibold text-sm text-white truncate">{otherUser.name}</p>
+                <p className="font-semibold text-sm text-white truncate">
+                  {otherUser.name}
+                </p>
                 <p className="text-xs">
-                  {otherUser.isOnline
-                    ? <span className="text-green-500 font-medium">Online</span>
-                    : <span className="text-neutral-500">{formatLastSeen(otherUser.lastSeen)}</span>
-                  }
+                  {otherUser.isOnline ? (
+                    <span className="text-green-500 font-medium">Online</span>
+                  ) : (
+                    <span className="text-neutral-500">
+                      {formatLastSeen(otherUser.lastSeen)}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -217,16 +247,36 @@ export function ChatWindow({ conversationId }: Props) {
           {/* Action buttons */}
           <div className="flex items-center gap-1">
             <button
-              disabled
-              title="Voice call (coming soon)"
-              className="p-2 rounded-lg text-neutral-600 cursor-not-allowed"
+              onClick={() => {
+                if (otherUser) {
+                  (window as any).__startCall?.(
+                    conversation?.user1Id === userId
+                      ? conversation?.user2Id
+                      : conversation?.user1Id,
+                    otherUser,
+                    "voice",
+                  );
+                }
+              }}
+              className="p-2 rounded-lg text-neutral-400 hover:text-violet-400 hover:bg-neutral-800 transition-colors"
+              title="Voice call"
             >
               <Phone className="w-4 h-4" />
             </button>
             <button
-              disabled
-              title="Video call (coming soon)"
-              className="p-2 rounded-lg text-neutral-600 cursor-not-allowed"
+              onClick={() => {
+                if (otherUser) {
+                  (window as any).__startCall?.(
+                    conversation?.user1Id === userId
+                      ? conversation?.user2Id
+                      : conversation?.user1Id,
+                    otherUser,
+                    "video",
+                  );
+                }
+              }}
+              className="p-2 rounded-lg text-neutral-400 hover:text-violet-400 hover:bg-neutral-800 transition-colors"
+              title="Video call"
             >
               <Video className="w-4 h-4" />
             </button>
@@ -236,7 +286,7 @@ export function ChatWindow({ conversationId }: Props) {
                 "p-2 rounded-lg transition-colors",
                 showInfo
                   ? "bg-violet-600/20 text-violet-400"
-                  : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  : "text-neutral-400 hover:text-white hover:bg-neutral-800",
               )}
               title="User info"
             >
@@ -266,9 +316,20 @@ export function ChatWindow({ conversationId }: Props) {
           {isLoading ? (
             <div className="space-y-4 px-4 py-4">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className={cn("flex gap-2", i % 2 === 0 ? "flex-row" : "flex-row-reverse")}>
+                <div
+                  key={i}
+                  className={cn(
+                    "flex gap-2",
+                    i % 2 === 0 ? "flex-row" : "flex-row-reverse",
+                  )}
+                >
                   <div className="h-8 w-8 rounded-full bg-neutral-800 animate-pulse flex-shrink-0" />
-                  <div className={cn("h-10 rounded-2xl bg-neutral-800 animate-pulse", i % 2 === 0 ? "w-48" : "w-36")} />
+                  <div
+                    className={cn(
+                      "h-10 rounded-2xl bg-neutral-800 animate-pulse",
+                      i % 2 === 0 ? "w-48" : "w-36",
+                    )}
+                  />
                 </div>
               ))}
             </div>
@@ -279,7 +340,9 @@ export function ChatWindow({ conversationId }: Props) {
               className="flex flex-col items-center justify-center h-full py-16 text-center px-8"
             >
               {otherUser && <UserAvatar user={otherUser} size="lg" />}
-              <p className="font-semibold mt-4 text-lg text-white">{otherUser?.name}</p>
+              <p className="font-semibold mt-4 text-lg text-white">
+                {otherUser?.name}
+              </p>
               <p className="text-sm text-neutral-500 mt-1">
                 Say hello to {otherUser?.name?.split(" ")[0] ?? "them"}! 👋
               </p>
@@ -295,7 +358,9 @@ export function ChatWindow({ conversationId }: Props) {
         {/* Scroll to bottom */}
         {showScrollBtn && (
           <button
-            onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+            onClick={() =>
+              bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+            }
             className="absolute bottom-24 right-6 w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-lg hover:bg-violet-500 transition-colors z-10"
           >
             <ChevronDown className="w-4 h-4" />
@@ -336,16 +401,20 @@ export function ChatWindow({ conversationId }: Props) {
                 <p className="font-semibold text-white">{otherUser.name}</p>
                 <p className="text-sm text-neutral-500">{otherUser.email}</p>
               </div>
-              <div className={cn(
-                "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
-                otherUser.isOnline
-                  ? "bg-green-500/10 text-green-500"
-                  : "bg-neutral-800 text-neutral-500"
-              )}>
-                <span className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  otherUser.isOnline ? "bg-green-500" : "bg-neutral-500"
-                )} />
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
+                  otherUser.isOnline
+                    ? "bg-green-500/10 text-green-500"
+                    : "bg-neutral-800 text-neutral-500",
+                )}
+              >
+                <span
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    otherUser.isOnline ? "bg-green-500" : "bg-neutral-500",
+                  )}
+                />
                 {otherUser.isOnline ? "Online" : "Offline"}
               </div>
             </div>
@@ -354,7 +423,8 @@ export function ChatWindow({ conversationId }: Props) {
               <div className="bg-neutral-800 rounded-xl p-3">
                 <p className="text-xs text-neutral-500 mb-1">Status</p>
                 <p className="text-sm text-white">
-                  {(otherUser as any).status ?? "Hey there! I am using ChitChat."}
+                  {(otherUser as any).status ??
+                    "Hey there! I am using ChitChat."}
                 </p>
               </div>
               <div className="bg-neutral-800 rounded-xl p-3">

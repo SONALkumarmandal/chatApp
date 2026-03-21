@@ -20,7 +20,10 @@ export function ConversationItem({ conversation, isActive, onClick }: Props) {
     ? conversation.user2
     : conversation.user1;
 
-  const lastMessage = conversation.messages[0];
+  // ✅ Guard against undefined user
+  if (!other) return null;
+
+  const lastMessage = conversation.messages?.[0];
   const unread = conversation._count?.messages ?? 0;
   const isLastMine = lastMessage?.senderId === userId;
 
@@ -42,7 +45,7 @@ export function ConversationItem({ conversation, isActive, onClick }: Props) {
             "text-sm font-semibold truncate",
             isActive ? "text-violet-400" : "text-neutral-100"
           )}>
-            {other.name}
+            {other.name ?? other.email ?? "Unknown"}
           </span>
           {lastMessage && (
             <span className="text-[10px] text-neutral-500 flex-shrink-0 ml-1">

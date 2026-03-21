@@ -68,14 +68,15 @@ export function Sidebar() {
     return () => pusherClient.unsubscribe(`user-${userId}`);
   }, [userId, updateConversation]);
 
-  const filtered = conversations.filter((c) => {
-    const other = c.user1Id === userId ? c.user2 : c.user1;
-    return (
-      other.name?.toLowerCase().includes(query.toLowerCase()) ||
-      other.email?.toLowerCase().includes(query.toLowerCase())
-    );
-  });
-
+const filtered = conversations.filter((c) => {
+  const other = c.user1Id === userId ? c.user2 : c.user1;
+  // ✅ Guard against undefined
+  if (!other) return false;
+  return (
+    other.name?.toLowerCase().includes(query.toLowerCase()) ||
+    other.email?.toLowerCase().includes(query.toLowerCase())
+  );
+});
   const handleSelect = (id: string) => {
     setActiveConversation(id);
     router.push(`/chat/${id}`);

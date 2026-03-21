@@ -3,25 +3,27 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, CheckCheck, Smile, MoreHorizontal } from "lucide-react";
+import { Check, CheckCheck, Smile } from "lucide-react";
 import { cn, formatMessageTime } from "@/lib/utils";
 import { Message } from "@/types";
 import { UserAvatar } from "./user-avatar";
-import { isSameDay } from "date-fns";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
 interface Props {
   message: Message;
   showAvatar?: boolean;
+  conversationId: string;
 }
 
-export function MessageBubble({ message, showAvatar = false }: Props) {
+export function MessageBubble({ message, showAvatar = false, conversationId }: Props) {
   const { data: session } = useSession();
   const userId = (session?.user as any)?.id;
   const isMine = message.senderId === userId;
   const [showActions, setShowActions] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [reactions, setReactions] = useState(message.reactions);
+  const [isReacting, setIsReacting] = useState(false);
 
   if (message.isDeleted) {
     return (
@@ -33,12 +35,33 @@ export function MessageBubble({ message, showAvatar = false }: Props) {
     );
   }
 
-  const reactionGroups = message.reactions.reduce((acc, r) => {
-    if (!acc[r.emoji]) acc[r.emoji] = { emoji: r.emoji, count: 0, users: [] };
+  const handleReact = async (emoji: string) => {
+    if (isReacting) return;
+    setIsReacting(true);
+    setShowEmoji(false);
+
+    try {
+      const res = await fetch("/api/reactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: message.id, emoji, conversationId }),
+      });
+      const data = await res.json();
+      if (data.reactions) setReactions(data.reactions);
+    } catch {
+      console.error("Failed to react");
+    } finally {
+      setIsReacting(false);
+    }
+  };
+
+  const reactionGroups = reactions.reduce((acc, r) => {
+    if (!acc[r.emoji]) acc[r.emoji] = { emoji: r.emoji, count: 0, users: [], isMine: false };
     acc[r.emoji].count++;
     acc[r.emoji].users.push(r.user.name ?? "Someone");
+    if (r.userId === userId) acc[r.emoji].isMine = true;
     return acc;
-  }, {} as Record<string, { emoji: string; count: number; users: string[] }>);
+  }, {} as Record<string, { emoji: string; count: number; users: string[]; isMine: boolean }>);
 
   return (
     <motion.div
@@ -74,7 +97,7 @@ export function MessageBubble({ message, showAvatar = false }: Props) {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className={cn(
                   "flex items-center gap-0.5 absolute top-1/2 -translate-y-1/2 z-10",
-                  isMine ? "-left-20" : "-right-20"
+                  isMine ? "-left-10" : "-right-10"
                 )}
               >
                 <div className="relative">
@@ -84,6 +107,7 @@ export function MessageBubble({ message, showAvatar = false }: Props) {
                   >
                     <Smile className="w-3.5 h-3.5 text-neutral-400" />
                   </button>
+
                   <AnimatePresence>
                     {showEmoji && (
                       <motion.div
@@ -99,7 +123,7 @@ export function MessageBubble({ message, showAvatar = false }: Props) {
                           <button
                             key={emoji}
                             className="text-base hover:scale-125 transition-transform p-0.5"
-                            onClick={() => setShowEmoji(false)}
+                            onClick={() => handleReact(emoji)}
                           >
                             {emoji}
                           </button>
@@ -141,10 +165,16 @@ export function MessageBubble({ message, showAvatar = false }: Props) {
               <button
                 key={r.emoji}
                 title={r.users.join(", ")}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700 text-xs hover:bg-neutral-700 transition-colors"
+                onClick={() => handleReact(r.emoji)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors border",
+                  r.isMine
+                    ? "bg-violet-600/20 border-violet-600/40 text-violet-300"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                )}
               >
                 <span>{r.emoji}</span>
-                {r.count > 1 && <span className="text-neutral-400">{r.count}</span>}
+                {r.count > 1 && <span>{r.count}</span>}
               </button>
             ))}
           </div>

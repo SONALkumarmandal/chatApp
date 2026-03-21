@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { AnimatePresence } from "framer-motion";
-import { getPeer, destroyPeer } from "@/lib/peer";
 import { getPusherClient } from "@/lib/pusher-client";
 import { CallScreen } from "./call-screen";
 import { IncomingCall } from "./incoming-call";
@@ -33,9 +32,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const currentCallRef = useRef<MediaConnection | null>(null);
   const targetUserIdRef = useRef<string | null>(null);
+  const peerRef = useRef<any>(null);
 
   const endCall = useCallback(() => {
-    // Notify other user
     if (targetUserIdRef.current) {
       fetch("/api/call", {
         method: "POST",
@@ -48,11 +47,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }).catch(console.error);
     }
 
-    // Stop all tracks
     activeCall?.localStream?.getTracks().forEach((t) => t.stop());
     currentCallRef.current?.close();
     currentCallRef.current = null;
     targetUserIdRef.current = null;
+    peerRef.current?.destroy();
+    peerRef.current = null;
 
     setActiveCall(null);
     setIncomingCall(null);
@@ -65,7 +65,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // Initiate a call
+  const createPeer = useCallback((id: string) => {
+    if (typeof window === "undefined") return null;
+    const Peer = require("peerjs").default;
+    const peer = new Peer(`${id}-${Date.now()}`, {
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
+      },
+    });
+    peerRef.current = peer;
+    return peer;
+  }, []);
+
   const startCall = useCallback(async (
     targetUserId: string,
     targetUser: { name?: string | null; image?: string | null },
@@ -74,10 +88,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     try {
       const stream = await getMedia(callType);
-      const peer = getPeer(userId);
+      const peer = createPeer(userId);
+      if (!peer) return;
+
       targetUserIdRef.current = targetUserId;
 
-      // Signal the other user
+      // Tell the other user about the call and our peer id
+      const myPeerId = await new Promise<string>((resolve) => {
+        peer.on("open", (id: string) => resolve(id));
+      });
+
       await fetch("/api/call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,6 +107,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           callType,
           callerName: session?.user?.name,
           callerImage: session?.user?.image,
+          callerPeerId: myPeerId,
         }),
       });
 
@@ -98,37 +119,29 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         isConnecting: true,
       });
 
-      // Wait for accept signal then call
-      const handleAccept = () => {
-        const call = peer.call(targetUserId, stream);
-        currentCallRef.current = call;
-
-        call.on("stream", (remoteStream) => {
-          setActiveCall((prev) =>
-            prev ? { ...prev, remoteStream, isConnecting: false } : null
-          );
-        });
-
-        call.on("close", endCall);
-      };
-
-      // Store handler so we can clean it up
-      (window as any).__callAcceptHandler = handleAccept;
+      // Store stream for when accepted
+      (window as any).__pendingCallStream = stream;
+      (window as any).__pendingPeer = peer;
     } catch (error) {
       toast.error("Could not access camera/microphone");
       console.error(error);
     }
-  }, [userId, session, endCall]);
+  }, [userId, session, createPeer]);
 
-  // Answer incoming call
   const acceptCall = useCallback(async () => {
     if (!incomingCall || !userId) return;
     try {
       const stream = await getMedia(incomingCall.callType);
-      const peer = getPeer(userId);
+      const peer = createPeer(userId);
+      if (!peer) return;
+
       targetUserIdRef.current = incomingCall.callerId;
 
-      // Signal caller that we accepted
+      const myPeerId = await new Promise<string>((resolve) => {
+        peer.on("open", (id: string) => resolve(id));
+      });
+
+      // Signal caller we accepted and send our peer id
       await fetch("/api/call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,6 +149,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           targetUserId: incomingCall.callerId,
           type: "accepted",
           callType: incomingCall.callType,
+          callerPeerId: myPeerId,
         }),
       });
 
@@ -154,22 +168,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setIncomingCall(null);
 
       // Answer when caller connects
-      peer.on("call", (call) => {
+      peer.on("call", (call: MediaConnection) => {
         call.answer(stream);
         currentCallRef.current = call;
-
-        call.on("stream", (remoteStream) => {
+        call.on("stream", (remoteStream: MediaStream) => {
           setActiveCall((prev) =>
             prev ? { ...prev, remoteStream } : null
           );
         });
-
         call.on("close", endCall);
       });
     } catch (error) {
       toast.error("Could not access camera/microphone");
+      console.error(error);
     }
-  }, [incomingCall, userId, endCall]);
+  }, [incomingCall, userId, createPeer, endCall]);
 
   const rejectCall = useCallback(async () => {
     if (!incomingCall) return;
@@ -185,27 +198,47 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIncomingCall(null);
   }, [incomingCall]);
 
-  // Listen for call signals via Pusher
+  // Listen for call signals
   useEffect(() => {
     if (!userId) return;
 
-    const peer = getPeer(userId);
     const channel = getPusherClient().subscribe(`user-${userId}`);
 
-    channel.bind("call-signal", (signal: CallSignal) => {
+    channel.bind("call-signal", async (signal: CallSignal & { callerPeerId?: string }) => {
       if (signal.type === "incoming") {
+        // Store caller peer id for when we accept
+        (window as any).__callerPeerId = signal.callerPeerId;
         setIncomingCall(signal);
+
       } else if (signal.type === "accepted") {
-        const handler = (window as any).__callAcceptHandler;
-        if (handler) { handler(); delete (window as any).__callAcceptHandler; }
+        // Receiver accepted — now make the WebRTC call
+        const stream = (window as any).__pendingCallStream;
+        const peer = (window as any).__pendingPeer;
+
+        if (peer && stream && signal.callerPeerId) {
+          const call = peer.call(signal.callerPeerId, stream);
+          currentCallRef.current = call;
+
+          call.on("stream", (remoteStream: MediaStream) => {
+            setActiveCall((prev) =>
+              prev ? { ...prev, remoteStream, isConnecting: false } : null
+            );
+          });
+          call.on("close", endCall);
+        }
+
         setActiveCall((prev) => prev ? { ...prev, isConnecting: false } : null);
+
       } else if (signal.type === "rejected") {
         toast.error("Call was declined");
         activeCall?.localStream?.getTracks().forEach((t) => t.stop());
+        peerRef.current?.destroy();
         setActiveCall(null);
+
       } else if (signal.type === "ended") {
         activeCall?.localStream?.getTracks().forEach((t) => t.stop());
         currentCallRef.current?.close();
+        peerRef.current?.destroy();
         setActiveCall(null);
         toast("Call ended", { icon: "📞" });
       }
@@ -213,11 +246,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       getPusherClient().unsubscribe(`user-${userId}`);
-      destroyPeer();
     };
-  }, [userId]);
+  }, [userId, endCall, activeCall]);
 
-  // Expose startCall globally so chat-window can use it
+  // Expose startCall globally
   useEffect(() => {
     (window as any).__startCall = startCall;
   }, [startCall]);
@@ -226,7 +258,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     <>
       {children}
 
-      {/* Incoming call notification */}
       <AnimatePresence>
         {incomingCall && !activeCall && (
           <IncomingCall
@@ -239,7 +270,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Active call screen */}
       <AnimatePresence>
         {activeCall && (
           <CallScreen

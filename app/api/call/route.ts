@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { pusherServer } from "@/lib/pusher";
 
 async function getDbUserId(email: string | null | undefined) {
   if (!email) return null;
@@ -8,7 +9,7 @@ async function getDbUserId(email: string | null | undefined) {
   return user?.id ?? null;
 }
 
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.email) {
@@ -20,31 +21,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const query = searchParams.get("q") || "";
+    const {
+      targetUserId, type, callType,
+      callerName, callerImage, callerPeerId
+    } = await req.json();
 
-    const users = await prisma.user.findMany({
-      where: {
-        AND: [
-          { id: { not: userId } },
-          query
-            ? {
-                OR: [
-                  { name: { contains: query, mode: "insensitive" } },
-                  { email: { contains: query, mode: "insensitive" } },
-                ],
-              }
-            : {},
-        ],
-      },
-      select: {
-        id: true, name: true, email: true,
-        image: true, isOnline: true, lastSeen: true, status: true,
-      },
-      take: 20,
+    await pusherServer.trigger(`user-${targetUserId}`, "call-signal", {
+      type,
+      callType,
+      callerId: userId,
+      callerName: callerName ?? session.user.name,
+      callerImage: callerImage ?? session.user.image,
+      callerPeerId,
     });
 
-    return NextResponse.json(users);
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -118,17 +118,37 @@ export function ChatWindow({ conversationId }: Props) {
     const channel = getPusherClient().subscribe(
       `conversation-${conversationId}`,
     );
+
     channel.bind("new-message", (message: Message) => {
       addMessage(conversationId, message);
     });
+
     channel.bind("typing", (data: any) => {
       if (data.userId !== userId) {
         setTyping(conversationId, data.userId, data.userName, data.isTyping);
       }
     });
+
+    channel.bind("messages-read", () => {
+      // could update read status here
+    });
+
+    // ✅ Add reaction updates
+    channel.bind(
+      "reaction-update",
+      (data: { messageId: string; reactions: any[] }) => {
+        setMessages(
+          conversationId,
+          msgs.map((m) =>
+            m.id === data.messageId ? { ...m, reactions: data.reactions } : m,
+          ),
+        );
+      },
+    );
+
     return () =>
       getPusherClient().unsubscribe(`conversation-${conversationId}`);
-  }, [conversationId, userId, addMessage, setTyping]);
+  }, [conversationId, userId, addMessage, setTyping, setMessages, msgs]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -197,7 +217,12 @@ export function ChatWindow({ conversationId }: Props) {
         );
       }
       items.push(
-        <MessageBubble key={msg.id} message={msg} showAvatar={showAvatar} />,
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          showAvatar={showAvatar}
+          conversationId={conversationId}
+        />,
       );
     });
     return items;

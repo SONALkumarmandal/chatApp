@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MessageCircle, Search, Plus,
-  LogOut, Moon, Sun, X,
+  MessageCircle,
+  Search,
+  Plus,
+  LogOut,
+  Moon,
+  Sun,
+  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { UserAvatar } from "./user-avatar";
@@ -23,8 +28,11 @@ export function Sidebar() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const {
-    conversations, setConversations, updateConversation,
-    activeConversationId, setActiveConversation,
+    conversations,
+    setConversations,
+    updateConversation,
+    activeConversationId,
+    setActiveConversation,
   } = useChatStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +40,9 @@ export function Sidebar() {
   const [newChatOpen, setNewChatOpen] = useState(false);
 
   const userId = (session?.user as any)?.id;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -95,11 +106,16 @@ export function Sidebar() {
               <Plus className="w-4 h-4" />
             </button>
             <button
-              suppressHydrationWarning
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              onClick={() =>
+                setTheme(resolvedTheme === "dark" ? "light" : "dark")
+              }
               className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
             >
-              <Sun className="w-4 h-4" suppressHydrationWarning />
+              {mounted && resolvedTheme === "dark" ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>
@@ -194,7 +210,10 @@ export function Sidebar() {
         </div>
       </aside>
 
-      <UserSearchDialog open={newChatOpen} onClose={() => setNewChatOpen(false)} />
+      <UserSearchDialog
+        open={newChatOpen}
+        onClose={() => setNewChatOpen(false)}
+      />
     </>
   );
 }

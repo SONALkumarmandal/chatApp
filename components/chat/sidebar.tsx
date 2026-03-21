@@ -77,10 +77,11 @@ const filtered = conversations.filter((c) => {
     other.email?.toLowerCase().includes(query.toLowerCase())
   );
 });
-  const handleSelect = (id: string) => {
-    setActiveConversation(id);
-    router.push(`/chat/${id}`);
-  };
+ const handleSelect = (id: string) => {
+  if (!id) return; // ✅ Guard against undefined
+  setActiveConversation(id);
+  router.push(`/chat/${id}`);
+};
 
   return (
     <>

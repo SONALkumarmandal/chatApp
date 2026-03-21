@@ -5,14 +5,8 @@ import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MessageCircle,
-  Search,
-  Plus,
-  LogOut,
-  Moon,
-  Sun,
-  X,
-  Settings,
+  MessageCircle, Search, Plus,
+  LogOut, Moon, Sun, X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { UserAvatar } from "./user-avatar";
@@ -29,12 +23,10 @@ export function Sidebar() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const {
-    conversations,
-    setConversations,
-    updateConversation,
-    activeConversationId,
-    setActiveConversation,
+    conversations, setConversations, updateConversation,
+    activeConversationId, setActiveConversation,
   } = useChatStore();
+
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
@@ -68,20 +60,20 @@ export function Sidebar() {
     return () => getPusherClient().unsubscribe(`user-${userId}`);
   }, [userId, updateConversation]);
 
-const filtered = conversations.filter((c) => {
-  const other = c.user1Id === userId ? c.user2 : c.user1;
-  // ✅ Guard against undefined
-  if (!other) return false;
-  return (
-    other.name?.toLowerCase().includes(query.toLowerCase()) ||
-    other.email?.toLowerCase().includes(query.toLowerCase())
-  );
-});
- const handleSelect = (id: string) => {
-  if (!id) return; // ✅ Guard against undefined
-  setActiveConversation(id);
-  router.push(`/chat/${id}`);
-};
+  const filtered = conversations.filter((c) => {
+    const other = c.user1Id === userId ? c.user2 : c.user1;
+    if (!other) return false;
+    return (
+      other.name?.toLowerCase().includes(query.toLowerCase()) ||
+      other.email?.toLowerCase().includes(query.toLowerCase())
+    );
+  });
+
+  const handleSelect = (id: string) => {
+    if (!id) return;
+    setActiveConversation(id);
+    router.push(`/chat/${id}`);
+  };
 
   return (
     <>
@@ -104,9 +96,7 @@ const filtered = conversations.filter((c) => {
             </button>
             <button
               suppressHydrationWarning
-              onClick={() =>
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              }
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
             >
               <Sun className="w-4 h-4" suppressHydrationWarning />
@@ -182,24 +172,20 @@ const filtered = conversations.filter((c) => {
           )}
         </div>
 
-        {/* User footer */}
+        {/* ✅ Fixed User Footer */}
         <div className="p-3 border-t border-neutral-800">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-800 transition-colors group">
-            <button
-              onClick={() => router.push("/profile")}
-              className="flex items-center gap-3 flex-1 min-w-0"
-            >
-              <UserAvatar user={session?.user ?? {}} size="sm" showOnline />
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-white truncate">
-                  {session?.user?.name}
-                </p>
-                <p className="text-[10px] text-green-500 font-medium">Online</p>
-              </div>
-            </button>
+          <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-neutral-800/50">
+            <UserAvatar user={session?.user ?? {}} size="sm" showOnline />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {session?.user?.name}
+              </p>
+              <p className="text-[10px] text-green-500 font-medium">Online</p>
+            </div>
+            {/* ✅ Always visible logout button */}
             <button
               onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-neutral-700 transition-all"
+              className="flex-shrink-0 p-2 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-neutral-700 transition-colors"
               title="Sign out"
             >
               <LogOut className="w-4 h-4" />
@@ -208,10 +194,7 @@ const filtered = conversations.filter((c) => {
         </div>
       </aside>
 
-      <UserSearchDialog
-        open={newChatOpen}
-        onClose={() => setNewChatOpen(false)}
-      />
+      <UserSearchDialog open={newChatOpen} onClose={() => setNewChatOpen(false)} />
     </>
   );
 }

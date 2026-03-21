@@ -115,7 +115,9 @@ export function ChatWindow({ conversationId }: Props) {
   }, [msgs.length, typing.length]);
 
   useEffect(() => {
-    const channel = getPusherClient().subscribe(`conversation-${conversationId}`);
+    const channel = getPusherClient().subscribe(
+      `conversation-${conversationId}`,
+    );
     channel.bind("new-message", (message: Message) => {
       addMessage(conversationId, message);
     });
@@ -124,7 +126,8 @@ export function ChatWindow({ conversationId }: Props) {
         setTyping(conversationId, data.userId, data.userName, data.isTyping);
       }
     });
-    return () => getPusherClient().unsubscribe(`conversation-${conversationId}`);
+    return () =>
+      getPusherClient().unsubscribe(`conversation-${conversationId}`);
   }, [conversationId, userId, addMessage, setTyping]);
 
   const handleScroll = useCallback(() => {
@@ -383,7 +386,8 @@ export function ChatWindow({ conversationId }: Props) {
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex-shrink-0 bg-neutral-900 border-l border-neutral-800 flex flex-col overflow-hidden"
+            style={{ minWidth: showInfo ? 280 : 0 }}
+            className="shrink-0 bg-neutral-900 border-l border-neutral-800 flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
               <h3 className="font-semibold text-white text-sm">Profile</h3>

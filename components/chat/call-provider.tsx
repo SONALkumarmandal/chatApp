@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { AnimatePresence } from "framer-motion";
 import { getPeer, destroyPeer } from "@/lib/peer";
-import { pusherClient } from "@/lib/pusher";
+import { getPusherClient } from "@/lib/pusher-client";
 import { CallScreen } from "./call-screen";
 import { IncomingCall } from "./incoming-call";
 import type { MediaConnection } from "peerjs";
@@ -190,7 +190,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
 
     const peer = getPeer(userId);
-    const channel = pusherClient.subscribe(`user-${userId}`);
+    const channel = getPusherClient().subscribe(`user-${userId}`);
 
     channel.bind("call-signal", (signal: CallSignal) => {
       if (signal.type === "incoming") {
@@ -212,7 +212,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      pusherClient.unsubscribe(`user-${userId}`);
+      getPusherClient().unsubscribe(`user-${userId}`);
       destroyPeer();
     };
   }, [userId]);

@@ -19,7 +19,7 @@ import { UserAvatar } from "./user-avatar";
 import { ConversationItem } from "./conversation-item";
 import { UserSearchDialog } from "./user-search-dialog";
 import { useChatStore } from "@/store/chat-store";
-import { pusherClient } from "@/lib/pusher";
+import { getPusherClient } from "@/lib/pusher-client";
 import { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -58,14 +58,14 @@ export function Sidebar() {
 
   useEffect(() => {
     if (!userId) return;
-    const channel = pusherClient.subscribe(`user-${userId}`);
+    const channel = getPusherClient().subscribe(`user-${userId}`);
     channel.bind("conversation-update", (data: any) => {
       updateConversation(data.conversationId, {
         messages: [data.lastMessage],
         updatedAt: data.lastMessage.createdAt,
       });
     });
-    return () => pusherClient.unsubscribe(`user-${userId}`);
+    return () => getPusherClient().unsubscribe(`user-${userId}`);
   }, [userId, updateConversation]);
 
 const filtered = conversations.filter((c) => {

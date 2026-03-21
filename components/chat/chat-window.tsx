@@ -18,7 +18,7 @@ import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { TypingIndicator } from "./typing-indicator";
 import { useChatStore } from "@/store/chat-store";
-import { pusherClient } from "@/lib/pusher";
+import { getPusherClient } from "@/lib/pusher-client";
 import { Conversation, Message } from "@/types";
 import { cn, formatLastSeen } from "@/lib/utils";
 import { isSameDay, format } from "date-fns";
@@ -115,7 +115,7 @@ export function ChatWindow({ conversationId }: Props) {
   }, [msgs.length, typing.length]);
 
   useEffect(() => {
-    const channel = pusherClient.subscribe(`conversation-${conversationId}`);
+    const channel = getPusherClient().subscribe(`conversation-${conversationId}`);
     channel.bind("new-message", (message: Message) => {
       addMessage(conversationId, message);
     });
@@ -124,7 +124,7 @@ export function ChatWindow({ conversationId }: Props) {
         setTyping(conversationId, data.userId, data.userName, data.isTyping);
       }
     });
-    return () => pusherClient.unsubscribe(`conversation-${conversationId}`);
+    return () => getPusherClient().unsubscribe(`conversation-${conversationId}`);
   }, [conversationId, userId, addMessage, setTyping]);
 
   const handleScroll = useCallback(() => {

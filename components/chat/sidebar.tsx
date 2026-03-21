@@ -110,11 +110,16 @@ export function Sidebar() {
                 setTheme(resolvedTheme === "dark" ? "light" : "dark")
               }
               className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              title="Toggle theme"
             >
-              {mounted && resolvedTheme === "dark" ? (
-                <Sun className="w-4 h-4" />
+              {mounted ? (
+                resolvedTheme === "dark" ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )
               ) : (
-                <Moon className="w-4 h-4" />
+                <Sun className="w-4 h-4" />
               )}
             </button>
           </div>
